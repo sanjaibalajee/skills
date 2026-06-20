@@ -1,0 +1,96 @@
+{
+  "kind": "recap",
+  "id": "recap-auth-rate-limit",
+  "title": "Add per-IP rate limiting to the auth endpoints",
+  "subtitle": "Branch feat/auth-rate-limit → main · 7 files, +214 −38",
+  "meta": {
+    "repo": "framed-api",
+    "branch": "feat/auth-rate-limit",
+    "base": "main",
+    "author": "sanjai",
+    "date": "2026-06-19"
+  },
+  "summary": "Login and password-reset were unthrottled, so a scripted client could brute-force credentials or exhaust the email provider quota. This change adds a small token-bucket limiter backed by the existing Redis client and wires it into the two auth routes, returning `429` with a `Retry-After` header. The limiter is opt-in per route via a decorator, so the blast radius stays inside `auth/`.",
+  "blocks": [
+    { "type": "metrics", "items": [
+      { "label": "Files changed", "value": "7", "delta": "5 mod · 2 new", "intent": "neutral" },
+      { "label": "Lines", "value": "+214 −38", "intent": "neutral" },
+      { "label": "New deps", "value": "0", "delta": "reused Redis client", "intent": "good" },
+      { "label": "Risk score", "value": "Med", "delta": "1 hot file", "intent": "warn" }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "What changed", "id": "what" },
+    { "type": "drift", "items": [
+      { "planned": "Token-bucket limiter in Redis", "actual": "Implemented as auth/limiter.py with a Lua script for atomic decrement", "status": "as-planned" },
+      { "planned": "Apply to /login and /reset", "actual": "Applied to /login, /reset, and also /verify-otp", "status": "changed", "note": "Added /verify-otp after noticing it shares the same abuse surface." },
+      { "planned": "Configurable limits via env", "actual": "Hardcoded 5/min in this cut", "status": "skipped", "note": "Deferred to a follow-up; env plumbing was out of scope." },
+      { "planned": "", "actual": "Added a /metrics counter for throttled requests", "status": "added", "note": "Unplanned but cheap; helps verify the limiter in staging." }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "Architecture", "id": "arch" },
+    { "type": "diagram", "title": "Request flow with limiter (click a node to jump)",
+      "mermaid": "flowchart LR\n  C[Client] --> R[Router]\n  R --> L{rate_limit?}\n  L -- under --> H[Auth handler]\n  L -- over --> E[429 + Retry-After]\n  H --> RD[(Redis)]\n  L -. token bucket .-> RD",
+      "links": { "Auth handler": "key", "Redis": "decisions", "429": "api" } },
+
+    { "type": "heading", "level": 2, "text": "Files", "id": "files" },
+    { "type": "filetree", "root": "framed-api", "entries": [
+      { "path": "auth/limiter.py", "change": "add", "plus": 88, "note": "token-bucket + Lua script" },
+      { "path": "auth/routes.py", "change": "mod", "plus": 24, "minus": 6, "note": "@rate_limit on 3 routes" },
+      { "path": "auth/decorators.py", "change": "mod", "plus": 31, "minus": 2 },
+      { "path": "core/redis.py", "change": "mod", "plus": 4, "minus": 0, "note": "expose eval()" },
+      { "path": "tests/test_limiter.py", "change": "add", "plus": 61 },
+      { "path": "tests/test_auth.py", "change": "mod", "plus": 6, "minus": 30 },
+      { "path": "config/defaults.py", "change": "mod", "plus": 0, "minus": 0, "note": "no change (limits hardcoded for now)" }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "Key changes", "id": "key" },
+    { "type": "tabs", "tabs": [
+      { "label": "limiter.py", "blocks": [
+        { "type": "diff", "file": "auth/limiter.py", "lang": "python", "hunks": [
+          { "header": "@@ new file @@", "lines": [
+            { "type": "add", "text": "def allow(key: str, limit: int = 5, window: int = 60) -> tuple[bool, int]:" },
+            { "type": "add", "text": "    # atomic decrement via Lua so concurrent requests can't race the bucket" },
+            { "type": "add", "text": "    remaining, retry = redis.eval(BUCKET_LUA, 1, key, limit, window)" },
+            { "type": "add", "text": "    return remaining >= 0, retry" }
+          ]}
+        ], "note": "Atomicity matters here — a non-atomic get/set would let bursts slip through." }
+      ]},
+      { "label": "routes.py", "blocks": [
+        { "type": "diff", "file": "auth/routes.py", "lang": "python", "hunks": [
+          { "header": "@@ -41,6 +41,9 @@ def login():", "lines": [
+            { "type": "ctx", "text": "@router.post('/login')" },
+            { "type": "add", "text": "@rate_limit(limit=5, window=60)" },
+            { "type": "ctx", "text": "def login():" },
+            { "type": "del", "text": "    return authenticate(request)" },
+            { "type": "add", "text": "    return authenticate(request)  # now behind limiter" }
+          ]}
+        ]}
+      ]}
+    ]},
+
+    { "type": "heading", "level": 2, "text": "Risk & blast radius", "id": "risk" },
+    { "type": "risk", "items": [
+      { "file": "auth/limiter.py", "score": 72, "reasons": ["new file", "concurrency-sensitive Lua", "on the hot login path"], "mitigation": "61-line test covers burst + window-reset; staging metric added" },
+      { "file": "core/redis.py", "score": 45, "reasons": ["shared client touched", "exposes raw eval()"], "mitigation": "eval() kept private to auth via import" },
+      { "file": "auth/routes.py", "score": 30, "reasons": ["decorator added to 3 routes"] },
+      { "file": "tests/test_auth.py", "score": 10, "reasons": ["test-only churn"] }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "API", "id": "api" },
+    { "type": "api", "endpoints": [
+      { "method": "POST", "path": "/login", "desc": "now 429 + Retry-After when >5/min/IP" },
+      { "method": "POST", "path": "/reset", "desc": "same limiter" },
+      { "method": "POST", "path": "/verify-otp", "desc": "added to limiter (unplanned)" }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "Decisions", "id": "decisions" },
+    { "type": "decision", "choice": "Token bucket in Redis (not in-process)", "reversibility": "soft",
+      "alternatives": ["in-process LRU counter", "Nginx limit_req", "API-gateway throttle"],
+      "rationale": "The API runs multiple workers, so an **in-process** counter would let each worker grant its own quota. Redis is already a dependency, so this adds no new infra. Gateway throttling was rejected because we want per-account limits later, which the gateway can't see." },
+
+    { "type": "heading", "level": 2, "text": "Open questions", "id": "questions" },
+    { "type": "questions", "items": [
+      { "q": "Should limits be configurable per-environment before this ships to prod?", "options": ["env var", "config file", "admin API"], "recommendation": "env var in the follow-up PR" }
+    ]}
+  ]
+}

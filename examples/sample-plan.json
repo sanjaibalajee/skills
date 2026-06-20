@@ -1,0 +1,49 @@
+{
+  "kind": "plan",
+  "id": "plan-auth-rate-limit",
+  "title": "Add per-IP rate limiting to the auth endpoints",
+  "subtitle": "Protect /login and /reset from brute-force and quota exhaustion",
+  "meta": { "repo": "framed-api", "author": "sanjai", "date": "2026-06-19" },
+  "summary": "Login and password-reset are currently unthrottled. A scripted client can brute-force credentials or burn our email-provider quota. **Plan:** add a small token-bucket limiter on the existing Redis client, applied per-route via a decorator, returning `429` with `Retry-After`. First cut covers `/login` and `/reset`; configurable limits are deferred.",
+  "blocks": [
+    { "type": "metrics", "items": [
+      { "label": "New files", "value": "2", "intent": "neutral" },
+      { "label": "Touched", "value": "~4", "intent": "neutral" },
+      { "label": "New deps", "value": "0", "delta": "reuse Redis", "intent": "good" },
+      { "label": "Reversibility", "value": "Soft", "delta": "decorator opt-in", "intent": "good" }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "Approach", "id": "approach" },
+    { "type": "steps", "items": [
+      { "title": "Add token-bucket limiter", "status": "planned", "reversibility": "soft",
+        "md": "Atomic decrement via a Redis Lua script so concurrent requests can't race the bucket.",
+        "reuses": ["core/redis.py client"], "adds": ["auth/limiter.py", "BUCKET_LUA"], "files": ["auth/limiter.py"] },
+      { "title": "Add @rate_limit decorator", "status": "planned",
+        "reuses": ["auth/decorators.py pattern"], "adds": ["rate_limit()"], "files": ["auth/decorators.py"] },
+      { "title": "Apply to /login and /reset", "status": "planned",
+        "reuses": ["auth/routes.py"], "files": ["auth/routes.py"] },
+      { "title": "Tests: burst + window reset", "status": "planned",
+        "adds": ["tests/test_limiter.py"], "files": ["tests/test_limiter.py"] }
+    ]},
+
+    { "type": "code", "lang": "js", "runnable": true, "editable": true, "file": "token-bucket sketch — edit & ▶ Run",
+      "text": "// Reviewers can tweak this and run it right here, no setup.\nfunction allow(count, limit) { return count <= limit; }\nfor (let i = 1; i <= 7; i++) console.log('request', i, '->', allow(i, 5) ? 'OK' : '429 throttled');",
+      "note": "An **editable + runnable** snippet so reviewers can poke at the limiter logic inside the plan itself." },
+
+    { "type": "heading", "level": 2, "text": "Hard-to-reverse decision", "id": "decision" },
+    { "type": "decision", "choice": "Token bucket in Redis (not in-process)", "reversibility": "soft",
+      "alternatives": ["in-process LRU counter", "Nginx limit_req", "API-gateway throttle"],
+      "rationale": "The API runs multiple workers, so an **in-process** counter would let each worker grant its own quota. Redis is already a dependency. Gateway throttling can't see per-account limits we'll want later." },
+
+    { "type": "heading", "level": 2, "text": "Risk", "id": "risk" },
+    { "type": "risk", "items": [
+      { "file": "auth/limiter.py", "score": 70, "reasons": ["new", "concurrency-sensitive", "hot login path"], "mitigation": "atomic Lua + burst/reset tests" },
+      { "file": "core/redis.py", "score": 40, "reasons": ["shared client touched"], "mitigation": "keep eval() private to auth" }
+    ]},
+
+    { "type": "heading", "level": 2, "text": "Open questions", "id": "questions" },
+    { "type": "questions", "items": [
+      { "q": "Make limits configurable before prod, or hardcode 5/min for the first cut?", "options": ["env var now", "hardcode, follow-up PR"], "recommendation": "hardcode now, env var in follow-up" }
+    ]}
+  ]
+}

@@ -1,0 +1,6 @@
+# vendored mermaid cache (3 MB; fetched on demand via --fetch-mermaid)
+**/vendor/
+# python / os cruft
+__pycache__/
+*.pyc
+.DS_Store

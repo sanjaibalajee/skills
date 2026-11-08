@@ -36,6 +36,11 @@ GENERIC_TITLES = {"plan", "plan doc", "design doc", "proposal", "rfc", "project 
                   "untitled", "new plan", "implementation plan", "technical plan"}
 
 
+def read_text(path):
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
 # --------------------------------------------------------------------------
 # new
 # --------------------------------------------------------------------------
@@ -52,7 +57,7 @@ def find_git_dir(start):
         if os.path.isdir(g):
             return g
         if os.path.isfile(g):  # worktree: "gitdir: <path>"
-            m = re.match(r"gitdir:\s*(.+)", open(g, encoding="utf-8").read().strip())
+            m = re.match(r"gitdir:\s*(.+)", read_text(g).strip())
             if m:
                 return os.path.normpath(os.path.join(d, m.group(1)))
         parent = os.path.dirname(d)
@@ -68,15 +73,15 @@ def git_info(start):
     if g:
         head = os.path.join(g, "HEAD")
         if os.path.isfile(head):
-            m = re.match(r"ref: refs/heads/(.+)", open(head, encoding="utf-8").read().strip())
+            m = re.match(r"ref: refs/heads/(.+)", read_text(head).strip())
             branch = m.group(1) if m else ""
         cfg_dir = g
         common = os.path.join(g, "commondir")
         if os.path.isfile(common):
-            cfg_dir = os.path.normpath(os.path.join(g, open(common, encoding="utf-8").read().strip()))
+            cfg_dir = os.path.normpath(os.path.join(g, read_text(common).strip()))
         cfg = os.path.join(cfg_dir, "config")
         if os.path.isfile(cfg):
-            text = open(cfg, encoding="utf-8", errors="replace").read()
+            text = read_text(cfg)
             m = re.search(r'\[remote "origin"\][^\[]*?url\s*=\s*(\S+)', text)
             if m:  # git@github.com:owner/repo.git or https://host/owner/repo
                 parts = re.split(r"[:/]", re.sub(r"\.git$", "", m.group(1).rstrip("/")))
@@ -88,7 +93,7 @@ def git_info(start):
     if not author:
         gc = os.path.expanduser("~/.gitconfig")
         if os.path.isfile(gc):
-            m = re.search(r"\[user\][^\[]*?name\s*=\s*(.+)", open(gc, encoding="utf-8", errors="replace").read())
+            m = re.search(r"\[user\][^\[]*?name\s*=\s*(.+)", read_text(gc))
             author = m.group(1).strip() if m else ""
     return repo, branch, author
 
@@ -107,7 +112,7 @@ def cmd_new(a):
     if os.path.exists(path) and not a.force:
         sys.exit("plandoc: %s exists (use --force to overwrite)" % path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    text = open(TEMPLATE, encoding="utf-8").read()
+    text = read_text(TEMPLATE)
     fill = {"title": html.escape(title), "date": datetime.date.today().isoformat(),
             "author": html.escape(author), "repo": html.escape(where),
             "status": a.status, "status_label": STATUSES[a.status]}
@@ -148,7 +153,7 @@ def load_unslop():
 
 
 def cmd_check(a):
-    doc = open(a.file, encoding="utf-8").read()
+    doc = read_text(a.file)
     errors, warns = [], []
 
     for m in re.finditer(r"\[\[.*?\]\]|\{\{\w+\}\}", doc):
@@ -236,7 +241,7 @@ def cmd_check(a):
 # --------------------------------------------------------------------------
 
 def cmd_fragment(a):
-    doc = open(a.file, encoding="utf-8").read()
+    doc = read_text(a.file)
     head = re.search(r"<head\b[^>]*>(.*?)</head>", doc, re.S | re.I)
     body = re.search(r"<body\b[^>]*>(.*?)</body>", doc, re.S | re.I)
     if not head or not body:

@@ -22,7 +22,7 @@ available() {
 }
 
 describe() {  # first line of the frontmatter description, trimmed for a terminal
-  sed -n 's/^description: //p' "$SRC/$1/SKILL.md" | head -1 | cut -c1-90
+  sed -n 's/^description: "\{0,1\}//p' "$SRC/$1/SKILL.md" | head -1 | cut -c1-90
 }
 
 DEST="$HOME/.claude/skills"

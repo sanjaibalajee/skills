@@ -6,8 +6,8 @@ validate.py: keep the repo installable everywhere when skills are added or chang
     python3 tools/validate.py --sync   # copy blueprint's shared renderer into replay first
 
 Checks
-  - every skills/<name>/SKILL.md has frontmatter whose name matches the folder,
-    follows the agent-skills naming rules, and has a description under 1024 chars
+  - every skills/<name>/SKILL.md has frontmatter that strict YAML parsers accept, a name
+    that matches the folder and the agent-skills naming rules, and a description under 1024 chars
   - .claude-plugin/marketplace.json and skills.sh.json list every skill, and nothing else
   - README.md has an install line for every skill
   - blueprint and replay carry identical copies of the shared renderer
@@ -44,8 +44,18 @@ def frontmatter(path):
     fm = {}
     for line in m.group(1).split("\n"):
         kv = re.match(r"([A-Za-z_-]+):\s*(.*)$", line)
-        if kv:
-            fm[kv.group(1)] = kv.group(2).strip()
+        if not kv:
+            continue
+        key, val = kv.group(1), kv.group(2).strip()
+        if val.startswith('"'):
+            try:
+                val = json.loads(val)
+            except ValueError:
+                err("%s: %s is not a valid double-quoted string" % (path, key))
+        elif ": " in val or " #" in val:
+            # Plain YAML scalars can't hold ": " or " #"; strict parsers reject the whole file.
+            err("%s: quote the %s value, it contains ': ' or ' #'" % (os.path.relpath(path, ROOT), key))
+        fm[key] = val
     return fm
 
 

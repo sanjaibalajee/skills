@@ -1,0 +1,21 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Writing",
+      "description": "Make text read like a person wrote it.",
+      "skills": ["unslop"]
+    },
+    {
+      "title": "Planning",
+      "description": "Plans people can read, review and approve.",
+      "skills": ["plan-doc", "blueprint"]
+    },
+    {
+      "title": "Review",
+      "description": "Look back at finished work.",
+      "skills": ["replay"]
+    }
+  ]
+}

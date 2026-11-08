@@ -1,0 +1,27 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Validate skills, manifests and docs
+        run: python3 tools/validate.py
+      - name: Unit tests
+        run: python3 -m unittest discover tests -v
+      - name: Install script
+        run: |
+          ./install.sh --list
+          ./install.sh --dest "$RUNNER_TEMP/skills"
+          test -f "$RUNNER_TEMP/skills/unslop/SKILL.md"
+          test -f "$RUNNER_TEMP/skills/plan-doc/assets/template.html"
+      - name: Example plan doc passes its own check
+        run: python3 skills/plan-doc/scripts/plandoc.py check examples/plan-doc/webhook-retries.html

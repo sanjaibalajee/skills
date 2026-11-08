@@ -80,7 +80,7 @@ skills/
     scripts/           # build.py + template.html (the renderer)
     references/        # BLOCKS.md (the model schema)
   replay/              # same shape
-examples/              # sample-plan / sample-recap (.json source + .html artifact)
+examples/<skill>/      # sample input + rendered output per skill
 install.sh             # copies the skills into your Claude skills dir
 ```
 
@@ -98,8 +98,8 @@ The source of truth is a structured **model JSON** (see `skills/*/references/BLO
 produce one portable `.html`:
 
 ```bash
-python3 skills/blueprint/scripts/build.py examples/sample-plan.json -o plan.html
-python3 skills/replay/scripts/build.py    examples/sample-recap.json -o recap.html --fetch-mermaid
+python3 skills/blueprint/scripts/build.py examples/blueprint/plan.json -o plan.html
+python3 skills/replay/scripts/build.py    examples/replay/recap.json -o recap.html --fetch-mermaid
 ```
 
 Mermaid is inlined only for artifacts that actually have diagrams (`--fetch-mermaid`, cached in `vendor/`,

@@ -62,7 +62,7 @@ approval gate with diffs, playgrounds and annotations, that's `blueprint`.
 - **Every question has a default.** "Recommended: X, because Y" so the reader can just say yes.
 - **Lean.** A short plan is a good plan. No filler sections, no single-step plans, no invented
   timeline. Delete any optional block that would hold one line of nothing.
-- **Unslopped.** No em dashes, no hype, no "robust" or "seamless", no closing flourish. Say what a
+- **Unslopped.** No em dashes, no hype, no `robust` or `seamless`, no closing flourish. Say what a
   thing does and stop. The `unslop` skill's rules apply to every sentence.
 
 ## Design rules

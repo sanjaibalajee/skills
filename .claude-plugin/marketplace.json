@@ -1,0 +1,41 @@
+{
+  "name": "sanjaibalajee-skills",
+  "owner": {
+    "name": "Sanjai Balajee",
+    "url": "https://github.com/sanjaibalajee"
+  },
+  "metadata": {
+    "description": "Skills for planning, reviewing and writing with coding agents",
+    "version": "1.1.0"
+  },
+  "plugins": [
+    {
+      "name": "unslop",
+      "description": "Rewrite text so it reads like a person wrote it, with a scanner for AI tells",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/unslop"]
+    },
+    {
+      "name": "plan-doc",
+      "description": "Write a plan as one clean, self-contained HTML document people can approve",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/plan-doc"]
+    },
+    {
+      "name": "blueprint",
+      "description": "Turn a plan into an interactive HTML approval gate before coding",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/blueprint"]
+    },
+    {
+      "name": "replay",
+      "description": "Turn a finished diff into an interactive HTML review with plan drift",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/replay"]
+    }
+  ]
+}

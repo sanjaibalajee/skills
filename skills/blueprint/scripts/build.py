@@ -22,7 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(HERE, "template.html")
 VENDOR_DIR = os.path.join(HERE, "vendor")
 MERMAID_CACHE = os.path.join(VENDOR_DIR, "mermaid.min.js")
-MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
+MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"
 
 
 def load_model(path):

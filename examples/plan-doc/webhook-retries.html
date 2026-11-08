@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Webhook retries</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Retry failed payment webhooks in the background so every paid order gets a ticket.">
+<meta name="generator" content="plan-doc">
+<style>
+/* Layout: one reading column; sections split by hairlines; meta and labels in mono.
+   No cards, shadows or gradients. Purple marks the recommendation and nothing else. */
+:root {
+  --bg: #fbfbfc;
+  --fg: #17171c;
+  --muted: #5d5e6a;
+  --faint: #8a8b97;
+  --rule: #e2e2e8;
+  --code: #f1f1f4;
+  --accent: #6346d4;
+  --ok: #1b7a4b;
+  --warn: #8f5f00;
+  --bad: #b3261e;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --t-small: 0.8125rem;
+  --t-body: 1.0625rem;
+  --t-lead: 1.25rem;
+  --t-h2: 1.3125rem;
+  --t-h1: 2.125rem;
+  --measure: 46rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f13; --fg: #e9e9ef; --muted: #a2a2b0; --faint: #74748a; --rule: #272731;
+    --code: #18181f; --accent: #a68cff; --ok: #4cc38a; --warn: #e2a33a; --bad: #f97066;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f13; --fg: #e9e9ef; --muted: #a2a2b0; --faint: #74748a; --rule: #272731;
+  --code: #18181f; --accent: #a68cff; --ok: #4cc38a; --warn: #e2a33a; --bad: #f97066;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 var(--t-body)/1.62 var(--sans); }
+.page {
+  max-width: var(--measure); margin: 0 auto;
+  padding-block: 56px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: inherit; text-decoration-color: var(--faint); text-underline-offset: 2px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, kbd, .mono { font-family: var(--mono); font-size: 0.88em; }
+p, ul, ol, table, figure, pre { margin: 0 0 14px; }
+ul, ol { padding-left: 1.3em; }
+li + li { margin-top: 6px; }
+strong { font-weight: 620; }
+
+/* header */
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font: 400 var(--t-small)/1.4 var(--mono); color: var(--muted); }
+h1 { font-size: var(--t-h1); line-height: 1.12; letter-spacing: -0.022em; font-weight: 680; margin: 18px 0 14px; text-wrap: balance; }
+.lede { font-size: var(--t-lead); line-height: 1.5; margin: 0 0 8px; max-width: 36em; }
+.status { font: 500 0.75rem/1 var(--mono); padding: 4px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.status[data-s="draft"] { color: var(--muted); }
+.status[data-s="in-review"] { color: var(--warn); }
+.status[data-s="approved"], .status[data-s="done"] { color: var(--ok); }
+.status[data-s="in-progress"] { color: var(--accent); }
+.status[data-s="dropped"] { color: var(--bad); }
+
+/* sections */
+section { padding-block: 30px 16px; border-top: 1px solid var(--rule); }
+header + section { margin-top: 32px; }
+h2 { font-size: var(--t-h2); line-height: 1.3; font-weight: 660; letter-spacing: -0.012em; margin: 0 0 14px; text-wrap: balance; }
+h3 { font-size: var(--t-body); line-height: 1.4; font-weight: 640; margin: 22px 0 6px; text-wrap: balance; }
+h2 + h3 { margin-top: 0; }
+.label { font: 500 var(--t-small)/1.3 var(--mono); color: var(--muted); margin: 0 0 10px; }
+.note { color: var(--muted); font-size: 0.9375rem; }
+
+/* the recommendation: the one loud element on the page */
+.rec { border-top: 2px solid var(--accent); }
+.rec .label { color: var(--accent); }
+.rec .call { font-size: var(--t-lead); line-height: 1.5; font-weight: 560; }
+.rec .ask { color: var(--muted); }
+.rec .ask strong { color: var(--fg); }
+
+/* tables */
+.table-wrap { overflow-x: auto; margin: 0 0 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; line-height: 1.5; margin: 0; }
+th, td { text-align: left; vertical-align: top; padding: 9px 14px 9px 0; border-bottom: 1px solid var(--rule); }
+th { font: 500 var(--t-small)/1.3 var(--mono); color: var(--muted); }
+td:first-child { min-width: 9rem; }
+td code { word-break: break-word; }
+.tag { display: inline-block; font: 500 0.6875rem/1 var(--mono); padding: 3px 6px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; color: var(--muted); }
+.tag[data-k="add"], .tag[data-k="done"], .tag[data-k="low"], .tag[data-k="easy"] { color: var(--ok); }
+.tag[data-k="edit"], .tag[data-k="open"], .tag[data-k="med"], .tag[data-k="medium"] { color: var(--warn); }
+.tag[data-k="delete"], .tag[data-k="blocked"], .tag[data-k="high"], .tag[data-k="hard"] { color: var(--bad); }
+
+/* steps: a real sequence, so numbers carry meaning */
+ol.steps { list-style: none; padding: 0; counter-reset: step; }
+ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 2rem minmax(0, 1fr); padding: 12px 0; border-bottom: 1px solid var(--rule); margin: 0; }
+ol.steps > li::before { content: counter(step); font: 500 var(--t-small)/1.95 var(--mono); color: var(--faint); }
+ol.steps > li > * { grid-column: 2; margin-bottom: 4px; }
+ol.steps .files { font: 400 var(--t-small)/1.5 var(--mono); color: var(--muted); }
+
+/* decisions */
+.decision { padding: 4px 0 8px; }
+.decision + .decision { border-top: 1px solid var(--rule); padding-top: 14px; }
+.decision h3 { margin-top: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.decision .alts { color: var(--muted); font-size: 0.9375rem; }
+
+/* open questions */
+ol.questions { padding-left: 1.3em; }
+ol.questions > li { margin-bottom: 14px; }
+ol.questions .default { color: var(--muted); margin: 4px 0 0; }
+ol.questions .default strong { color: var(--fg); }
+
+/* code and diagrams */
+pre { background: var(--code); padding: 12px 14px; border-radius: 6px; overflow-x: auto; font: 0.84rem/1.6 var(--mono); }
+pre code { font-size: inherit; }
+figure.diagram { overflow-x: auto; }
+figure.diagram svg { display: block; max-width: 100%; height: auto; }
+figure.diagram svg text { fill: var(--fg); font: 13px var(--sans); }
+figure.diagram svg .node { fill: var(--bg); stroke: var(--muted); }
+figure.diagram svg .node.hot { stroke: var(--accent); stroke-width: 1.5; }
+figure.diagram svg .edge { stroke: var(--faint); fill: none; }
+figure.diagram svg .arrow { fill: var(--faint); }
+figcaption { font-size: var(--t-small); color: var(--muted); margin-top: 6px; }
+pre.mermaid { background: none; padding: 0; }
+
+/* changelog */
+ul.log { list-style: none; padding: 0; font-size: 0.9375rem; }
+ul.log time { font: 400 var(--t-small)/1.6 var(--mono); color: var(--muted); margin-right: 10px; }
+
+footer { margin-top: 40px; font: 400 var(--t-small)/1.4 var(--mono); color: var(--faint); }
+
+/* contents rail, wide screens only */
+nav.toc { display: none; }
+@media (min-width: 1240px) {
+  nav.toc { display: block; position: fixed; top: 64px; left: max(24px, calc(50% - var(--measure) / 2 - 15rem)); width: 12rem; font: 400 var(--t-small)/1.5 var(--mono); }
+  nav.toc a { display: block; padding: 3px 0; color: var(--muted); text-decoration: none; }
+  nav.toc a:hover, nav.toc a[aria-current="true"] { color: var(--fg); }
+}
+@media (max-width: 520px) {
+  :root { --t-h1: 1.75rem; --t-lead: 1.125rem; --t-body: 1rem; }
+  .page { padding-block: 32px 64px; }
+  /* tables stack: first cell on its own line, the rest side by side */
+  .table-wrap thead { display: none; }
+  .table-wrap tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .table-wrap td { border: 0; padding: 0; min-width: 0; }
+  .table-wrap td:first-child, .table-wrap td:nth-child(2):last-child { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+@media print {
+  :root { --bg: #ffffff; --fg: #000000; --muted: #444444; --faint: #666666; --rule: #cccccc; --code: #f4f4f4; color-scheme: light; }
+  nav.toc { display: none !important; }
+  .page { max-width: none; padding: 0; }
+  section { break-inside: avoid-page; }
+}
+</style>
+</head>
+<body>
+<nav class="toc" aria-label="Contents"></nav>
+<main class="page">
+
+<header>
+  <div class="meta">
+    <span class="status" data-s="in-review">in review</span>
+    <span>2026-11-08</span>
+    <span>Sanjai Balajee</span>
+    <span>example/events-api@main</span>
+  </div>
+  <h1>Webhook retries</h1>
+  <p class="lede">About 1 in 200 paid orders never gets a ticket because the payment webhook fails once and nothing tries again. This plan retries it in the background until the ticket is issued or a person is paged.</p>
+</header>
+
+<section id="recommendation" class="rec">
+  <p class="label">recommendation</p>
+  <p class="call">Move ticket issuing out of the webhook handler into a Celery task that retries 5 times over about 30 minutes, keyed on <code>payment_id</code> so a retry can never issue a second ticket. Ship it in one PR behind a flag.</p>
+  <p class="ask"><strong>Needs from you:</strong> approve the new <code>webhook_events</code> collection and the Slack alert channel.</p>
+</section>
+
+<section id="outcome">
+  <h2>What happens when this ships</h2>
+  <ul>
+    <li>A fan who pays gets their ticket even if Mongo or the email worker blips during checkout.</li>
+    <li>The webhook answers Razorpay in under 200 ms instead of up to 4 s, so Razorpay stops retrying on its side.</li>
+    <li>If all 5 retries fail, <code>#payments-alerts</code> gets the order id. Support no longer finds these from angry emails.</li>
+    <li>Nothing changes for fans whose payments already work.</li>
+  </ul>
+</section>
+
+<section id="changes">
+  <h2>What changes</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>where</th><th>change</th><th>why</th></tr></thead>
+      <tbody>
+        <tr><td><code>app/payments/webhooks.py</code></td><td><span class="tag" data-k="edit">edit</span></td><td>Verify signature, store the event, enqueue, return 200.</td></tr>
+        <tr><td><code>app/payments/tasks.py</code></td><td><span class="tag" data-k="add">add</span></td><td><code>issue_ticket_for_payment</code> task with backoff.</td></tr>
+        <tr><td><code>app/tickets/service.py</code></td><td><span class="tag" data-k="edit">edit</span></td><td><code>issue_ticket</code> becomes idempotent on <code>payment_id</code>.</td></tr>
+        <tr><td><code>webhook_events</code> collection</td><td><span class="tag" data-k="add">add</span></td><td>One document per event, unique index on <code>payment_id</code>.</td></tr>
+        <tr><td><code>migrations/0042_webhook_events.py</code></td><td><span class="tag" data-k="add">add</span></td><td>Creates the collection and index.</td></tr>
+        <tr><td><code>RETRY_WEBHOOKS</code></td><td><span class="tag" data-k="env">env</span></td><td>Flag. Off means the old inline path runs.</td></tr>
+        <tr><td><code>SLACK_PAYMENTS_WEBHOOK</code></td><td><span class="tag" data-k="env">env</span></td><td>Where the final-failure alert goes.</td></tr>
+        <tr><td><code>tests/payments/test_webhook_retry.py</code></td><td><span class="tag" data-k="add">add</span></td><td>Retry, dedupe and alert cases.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="steps">
+  <h2>Steps</h2>
+  <ol class="steps">
+    <li>
+      <p><strong>Make issuing idempotent.</strong> Reuse <code>issue_ticket</code>; add a unique index on <code>payment_id</code> and return the existing ticket on a duplicate key error.</p>
+      <p class="files">app/tickets/service.py, migrations/0042_webhook_events.py</p>
+    </li>
+    <li>
+      <p><strong>Add the task.</strong> New Celery task wraps <code>issue_ticket</code> with <code>autoretry_for</code>, backoff starting at 30 s, max 5 tries.</p>
+      <p class="files">app/payments/tasks.py</p>
+    </li>
+    <li>
+      <p><strong>Slim the handler.</strong> Keep the existing signature check, write the event, enqueue the task, return 200. Old inline code stays behind the flag.</p>
+      <p class="files">app/payments/webhooks.py</p>
+    </li>
+    <li>
+      <p><strong>Alert on final failure.</strong> On the last retry, post order id and error to Slack using the existing <code>notify_slack</code> helper.</p>
+      <p class="files">app/payments/tasks.py</p>
+    </li>
+    <li>
+      <p><strong>Test, deploy, flip the flag.</strong> Deploy with the flag off, turn it on for one event, then for all.</p>
+      <p class="files">tests/payments/test_webhook_retry.py</p>
+    </li>
+  </ol>
+</section>
+
+<section id="decisions">
+  <h2>Decisions</h2>
+  <div class="decision">
+    <h3>Retry in Celery, not in the handler <span class="tag" data-k="easy">easy to undo</span></h3>
+    <p>Razorpay expects a response within 5 seconds. A Celery task can back off for half an hour without holding a request open.</p>
+    <p class="alts">Considered: retrying inline (blocks the response), relying on Razorpay's own retries (they stop after 24 hours and give no alert).</p>
+  </div>
+  <div class="decision">
+    <h3>Dedupe on <code>payment_id</code> <span class="tag" data-k="hard">hard to undo</span></h3>
+    <p>One payment, one ticket. A unique index makes the second write fail instead of trusting every caller to check first.</p>
+    <p class="alts">Considered: dedupe on order id (one order can have two payment attempts).</p>
+  </div>
+</section>
+
+<section id="risks">
+  <h2>Risks</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>risk</th><th>level</th><th>what we do about it</th></tr></thead>
+      <tbody>
+        <tr><td>Index build locks the tickets collection</td><td><span class="tag" data-k="med">medium</span></td><td>Build in the background at 4 am IST; 180k documents takes under a minute in staging.</td></tr>
+        <tr><td>Celery backlog delays tickets during a big on-sale</td><td><span class="tag" data-k="low">low</span></td><td>Task goes on the existing high-priority queue.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="out-of-scope">
+  <h2>Out of scope</h2>
+  <ul>
+    <li>Retrying failed refunds. Same pattern, separate PR.</li>
+    <li>A support dashboard for stuck orders. The Slack alert covers it for now.</li>
+  </ul>
+</section>
+
+<section id="questions">
+  <h2>Open questions</h2>
+  <ol class="questions">
+    <li>
+      <p>Should the fan get an email when their ticket arrives late?</p>
+      <p class="default"><strong>Recommended:</strong> no. The normal ticket email already goes out when the task succeeds.</p>
+    </li>
+    <li>
+      <p>Which Slack channel gets the alert?</p>
+      <p class="default"><strong>Recommended:</strong> a new <code>#payments-alerts</code>, so it isn't lost in <code>#eng</code>.</p>
+    </li>
+  </ol>
+</section>
+
+<section id="changelog">
+  <h2>Changelog</h2>
+  <ul class="log">
+    <li><time datetime="2026-11-08">2026-11-08</time>Moved to review. Added the dedupe decision.</li>
+    <li><time datetime="2026-11-07">2026-11-07</time>First draft.</li>
+  </ul>
+</section>
+
+<footer>plan-doc · 2026-11-08</footer>
+</main>
+<script>
+/* Contents rail from section headings. Wide screens only; the page reads fine without it. */
+(function () {
+  var nav = document.querySelector("nav.toc");
+  var heads = document.querySelectorAll("main section[id] > h2");
+  if (!nav || heads.length < 4) return;
+  heads.forEach(function (h) {
+    var a = document.createElement("a");
+    a.href = "#" + h.parentElement.id;
+    a.textContent = h.textContent;
+    nav.appendChild(a);
+  });
+  if (!("IntersectionObserver" in window)) return;
+  var links = nav.querySelectorAll("a");
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      links.forEach(function (l) { l.setAttribute("aria-current", l.hash === "#" + e.target.id ? "true" : "false"); });
+    });
+  }, { rootMargin: "0px 0px -70% 0px" });
+  heads.forEach(function (h) { io.observe(h.parentElement); });
+})();
+</script>
+</body>
+</html>

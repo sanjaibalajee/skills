@@ -1,110 +1,153 @@
-# Prism — `blueprint` + `replay`
+# skills
 
-Two Claude skills that turn planning and change-review into **one self-contained interactive HTML file**
-each — no MCP, no server, no account, no internet at view time.
+Skills for coding agents: Claude Code, Codex, Cursor and anything else that reads `SKILL.md`.
+Each skill is one folder, and you can install any of them on its own.
 
-- **`blueprint`** *(look forward)* — turn a text plan into a reviewable artifact *before* you code:
-  collapsible steps with reuse/reversibility tags, pan/zoom architecture diagrams, **editable + runnable
-  code playgrounds**, file maps, data/API blocks, a risk heatmap, a decision log, wireframes. The
-  blueprint is the approval gate.
-- **`replay`** *(look back)* — turn a finished diff/PR/branch into an interactive review *after* the fact:
-  outcome narrative, file map, **split/unified diffs with word-level highlights**, an auto architecture
-  diagram whose nodes jump to the relevant diff, a risk/blast-radius heatmap, and a **plan-vs-reality
-  drift tracker** that flags where the code deviated from the original `blueprint`.
-
-The output is one `.html` you double-click to open in any browser, commit to the repo, or send over chat.
-The structured model lives as JSON *inside* the file, so it's at once a human-viewable document, a
-machine-readable model the agent re-reads, and a git-diff-friendly artifact.
-
----
+| skill | what it does |
+| --- | --- |
+| [unslop](skills/unslop/SKILL.md) | Rewrites text so it reads like a person wrote it. A bundled scanner flags AI tells by line in Markdown, HTML, commit messages and diffs. |
+| [plan-doc](skills/plan-doc/SKILL.md) | Writes a plan as one clean HTML doc that leads with the recommendation and lists everything that changes. |
+| [blueprint](skills/blueprint/SKILL.md) | Turns a plan into an interactive HTML approval gate before you write code. |
+| [replay](skills/replay/SKILL.md) | Turns a finished diff into an interactive review and shows where the work drifted from its blueprint. |
 
 ## Install
 
-Each skill is **self-contained** (it bundles its own `scripts/` and `references/`), so installing is just
-copying a folder.
-
-**Quick install (both skills):**
+### Any agent, one skill at a time
 
 ```bash
-git clone https://github.com/sanjaibalajee/skills.git
-cd skills
-./install.sh                 # user-level: ~/.claude/skills
-./install.sh /path/to/repo   # project-level: <repo>/.claude/skills
+npx skills add sanjaibalajee/skills --skill unslop
+npx skills add sanjaibalajee/skills --skill plan-doc
+npx skills add sanjaibalajee/skills --skill blueprint
+npx skills add sanjaibalajee/skills --skill replay
 ```
 
-**Or copy a single skill by hand:**
+Add `-g` to install for every project instead of the current one, and `-a claude-code` (or `codex`,
+`cursor`) to choose the agent. `npx skills add sanjaibalajee/skills --list` shows what's here.
+
+### Claude Code plugin
+
+```text
+/plugin install unslop --marketplace sanjaibalajee/skills
+/plugin install plan-doc --marketplace sanjaibalajee/skills
+/plugin install blueprint --marketplace sanjaibalajee/skills
+/plugin install replay --marketplace sanjaibalajee/skills
+```
+
+On older Claude Code versions, add the marketplace first with `/plugin marketplace add sanjaibalajee/skills`,
+then run `/plugin install unslop@sanjaibalajee-skills`.
+
+### From a clone
 
 ```bash
-cp -R skills/blueprint ~/.claude/skills/blueprint
+git clone https://github.com/sanjaibalajee/skills.git && cd skills
+./install.sh unslop plan-doc            # these two, into ~/.claude/skills
+./install.sh --project ~/code/app       # every skill, into that repo's .claude/skills
+./install.sh --dest ~/.agents/skills    # any skills directory
+./install.sh --link unslop              # symlink, so edits here show up everywhere
+./install.sh --list                     # what's available
 ```
 
-**On Claude.ai** — zip a skill folder and upload it under *Settings → Capabilities → Skills*:
+### Claude.ai
+
+Zip a skill folder and upload it under *Settings > Capabilities > Skills*:
 
 ```bash
-cd skills && zip -r blueprint.zip blueprint
+cd skills && zip -r unslop.zip unslop
 ```
 
-After any of these, run `/skills` in Claude Code (or restart) to pick them up.
+After installing, run `/skills` in Claude Code or restart it.
 
----
+## unslop
 
-## Use
+Ask for it in plain words:
 
-Just ask, in natural language — the skills self-trigger:
+- "unslop this" with pasted text
+- "unslop the README"
+- "unslop the docs I changed on this branch"
+- "clean up this message, I dictated it"
+- "unslop yourself" to keep your agent's replies plain for the rest of the session
 
-- *"Plan how I'd add per-IP rate limiting to the auth endpoints before I touch code."* → `blueprint`
-- *"Give me a visual recap of the changes on this branch vs main."* → `replay`
+It rewrites in passes (cut, make concrete, fix the shape, read as the reader), keeps every fact,
+number, link and command, and won't invent a number to replace a vague claim. Its house rules: no em
+dashes, no hype, no closing flourishes, short conventional commits with no AI co-author trailers.
 
-Each produces a `.html` and tells you the path. Open it, review, and (in annotate mode) leave notes that
-export back to the agent.
-
-### In the browser
-
-- **Left nav** auto-built from headings, with scroll-spy. **Search** (`/`) filters live. **◐** theme,
-  **⎙** print to PDF.
-- **Interactive diagrams** — drag to pan, scroll to zoom, fullscreen; click a wired node to jump to its
-  section/diff.
-- **Interactive code** — diffs have Copy + **Split ⊟ / Unified ▤**, **word-level** highlights, and
-  collapsible context. `code` blocks can be **▶ Run** + **editable** playgrounds (sandboxed iframe).
-- **Annotation loop** — **✎ Annotate** → click a block → leave a note → **⬇ JSON** / **⧉ Copy** hands
-  notes back to the agent. No server.
-
----
-
-## Repo layout
-
-```
-skills/
-  blueprint/           # self-contained skill — install this alone if you want
-    SKILL.md
-    scripts/           # build.py + template.html (the renderer)
-    references/        # BLOCKS.md (the model schema)
-  replay/              # same shape
-examples/<skill>/      # sample input + rendered output per skill
-install.sh             # copies the skills into your Claude skills dir
-```
-
-Each skill carries its own copy of `scripts/build.py` + `scripts/template.html` so it installs
-independently. If you edit the renderer in one, mirror it to the other:
+The scanner also works without the agent:
 
 ```bash
-cp skills/blueprint/scripts/* skills/replay/scripts/
+python3 skills/unslop/scripts/scan.py README.md
+git diff main | python3 skills/unslop/scripts/scan.py --diff -
+python3 skills/unslop/scripts/scan.py --commit-msg .git/COMMIT_EDITMSG --strict
 ```
 
-## How it works
+Put a `.unslop.json` in a repo for house exceptions and extra banned words. The skill can also
+install a `commit-msg` hook that blocks sloppy commit messages. See
+[examples/unslop](examples/unslop) for a before and after.
 
-The source of truth is a structured **model JSON** (see `skills/*/references/BLOCKS.md` for the catalog).
-`scripts/build.py` (pure stdlib) embeds it inside `scripts/template.html` (a zero-dependency renderer) to
-produce one portable `.html`:
+## plan-doc
+
+Ask for "a plan doc for X", "a design doc", "write up the plan" or "status of each issue". It reads
+the code first, then writes `plans/<slug>.html` in this order: the recommendation, what happens when
+it ships, every file and setting that changes, steps, decisions, risks, and open questions that each
+carry a recommended answer.
+
+The doc is one HTML file with light and dark themes that works on a phone. It needs no network and
+has no build step. `plandoc.py check` lints placeholders, title, theme tokens and prose. When the
+session can publish artifacts, `plandoc.py fragment` makes a copy ready to publish. See
+[examples/plan-doc/webhook-retries.html](examples/plan-doc/webhook-retries.html).
+
+## blueprint and replay
+
+Both produce one self-contained interactive HTML file with the structured model embedded as JSON, so
+the file is the document, the machine-readable source and a shareable artifact at once.
+
+- **blueprint** runs before coding. It turns a plan into collapsible steps with reuse and
+  reversibility tags, pan and zoom architecture diagrams, editable and runnable code playgrounds,
+  file maps, data and API blocks, a risk heatmap, a decision log and wireframes. The blueprint is
+  the approval gate.
+- **replay** runs after. It turns a diff, PR or branch into an outcome summary, a file map, split
+  or unified diffs with word-level highlights, a risk heatmap and a drift tracker that compares what
+  shipped against the original blueprint.
+
+In the browser you get a nav built from headings with live search (`/`), a theme toggle, print,
+diagrams whose nodes jump to the matching section or diff, and an annotate mode that exports
+reviewer notes as JSON for the agent to apply.
 
 ```bash
 python3 skills/blueprint/scripts/build.py examples/blueprint/plan.json -o plan.html
-python3 skills/replay/scripts/build.py    examples/replay/recap.json -o recap.html --fetch-mermaid
+python3 skills/replay/scripts/build.py examples/replay/recap.json -o recap.html --fetch-mermaid
 ```
 
-Mermaid is inlined only for artifacts that actually have diagrams (`--fetch-mermaid`, cached in `vendor/`,
-git-ignored); diagram-free artifacts stay ~35–50 KB.
+`build.py` is stdlib only. `--fetch-mermaid` downloads Mermaid once into `vendor/` (git-ignored) so
+diagrams render offline. Files without diagrams stay around 35 to 50 KB. The two skills carry
+identical copies of the renderer so each installs alone; after editing blueprint's copy, run
+`python3 tools/validate.py --sync` to update replay's.
+
+## Repo layout
+
+```text
+skills/<name>/          one folder per skill; this is what gets installed
+  SKILL.md              frontmatter (name, description) and instructions
+  scripts/ references/ assets/
+examples/<name>/        sample input and output for each skill (not installed)
+tests/                  stdlib unit tests for the skill scripts
+tools/validate.py       checks names, manifests, README install lines, shared files and prose
+.claude-plugin/         Claude Code plugin marketplace, one plugin per skill
+skills.sh.json          how skills.sh groups these skills on the repo page
+install.sh              copy or link skills without npx
+```
+
+## Add a skill
+
+1. Create `skills/<name>/SKILL.md`. The frontmatter `name` matches the folder (lowercase, digits,
+   single hyphens). The `description` says what the skill does and when to use it, in under 1024
+   characters, because agents use it to decide when to load the skill.
+2. Add the skill to `.claude-plugin/marketplace.json`, to a group in `skills.sh.json`, and to the
+   table and install lines in this README.
+3. Run `python3 tools/validate.py` and `python3 -m unittest discover tests`.
+4. Commit with a short conventional message, e.g. `feat: <name> skill`.
+
+[PUBLISHING.md](PUBLISHING.md) covers how skills get listed on skills.sh.
 
 ## License
 
-MIT © 2026 Sanjai Balajee — see [LICENSE](LICENSE).
+MIT © 2026 Sanjai Balajee. See [LICENSE](LICENSE).

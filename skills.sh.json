@@ -13,9 +13,19 @@
       "skills": ["plan-doc", "blueprint"]
     },
     {
+      "title": "Shipping",
+      "description": "Take a change from done to merged without watching it.",
+      "skills": ["pr-ready", "pr-merge", "pr-babysit", "pr-revive"]
+    },
+    {
       "title": "Review",
-      "description": "Look back at finished work.",
-      "skills": ["replay"]
+      "description": "Get a second opinion, and look back at finished work.",
+      "skills": ["cross-model-review", "replay"]
+    },
+    {
+      "title": "Mobile",
+      "description": "House rules for native Android and iOS apps.",
+      "skills": ["android-compose", "ios-swiftui"]
     }
   ]
 }

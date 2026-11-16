@@ -9,6 +9,13 @@ Each skill is one folder, and you can install any of them on its own.
 | [plan-doc](skills/plan-doc/SKILL.md) | Writes a plan as one clean HTML doc that leads with the recommendation and lists everything that changes. |
 | [blueprint](skills/blueprint/SKILL.md) | Turns a plan into an interactive HTML approval gate before you write code. |
 | [replay](skills/replay/SKILL.md) | Turns a finished diff into an interactive review and shows where the work drifted from its blueprint. |
+| [pr-ready](skills/pr-ready/SKILL.md) | Takes a change to a ready-to-merge PR with nobody watching: proves it, gets it reviewed, files it, babysits it. You merge. |
+| [pr-merge](skills/pr-merge/SKILL.md) | pr-ready, then merges once every gate passes, never around branch protection. |
+| [pr-babysit](skills/pr-babysit/SKILL.md) | Babysits an open PR: CI, review bots, reviewers, a stale base. A bundled watcher wakes the agent once per real event. |
+| [cross-model-review](skills/cross-model-review/SKILL.md) | Has a different model (Codex by default) review a change in a loop until it runs out of real objections. Panel mode runs three. |
+| [pr-revive](skills/pr-revive/SKILL.md) | Revives a stale PR: decides REBASE, REWRITE or CLOSE, then rebases it safely. |
+| [android-compose](skills/android-compose/SKILL.md) | Android rules for Kotlin and Jetpack Compose, condensed from 17 Google and community skills. |
+| [ios-swiftui](skills/ios-swiftui/SKILL.md) | SwiftUI rules for iPhone apps on iOS 26+ and Swift 6, from a shipping app and the top SwiftUI skills. |
 
 ## Install
 
@@ -19,7 +26,17 @@ npx skills add sanjaibalajee/skills --skill unslop
 npx skills add sanjaibalajee/skills --skill plan-doc
 npx skills add sanjaibalajee/skills --skill blueprint
 npx skills add sanjaibalajee/skills --skill replay
+npx skills add sanjaibalajee/skills --skill pr-ready
+npx skills add sanjaibalajee/skills --skill pr-merge
+npx skills add sanjaibalajee/skills --skill pr-babysit
+npx skills add sanjaibalajee/skills --skill cross-model-review
+npx skills add sanjaibalajee/skills --skill pr-revive
+npx skills add sanjaibalajee/skills --skill android-compose
+npx skills add sanjaibalajee/skills --skill ios-swiftui
 ```
+
+`pr-ready` uses `pr-babysit` and `cross-model-review`, and `pr-merge` uses `pr-ready`, so install the
+four together: `npx skills add sanjaibalajee/skills --skill pr-ready pr-merge pr-babysit cross-model-review`.
 
 Add `-g` to install for every project instead of the current one, and `-a claude-code` (or `codex`,
 `cursor`) to choose the agent. `npx skills add sanjaibalajee/skills --list` shows what's here.
@@ -31,6 +48,13 @@ Add `-g` to install for every project instead of the current one, and `-a claude
 /plugin install plan-doc --marketplace sanjaibalajee/skills
 /plugin install blueprint --marketplace sanjaibalajee/skills
 /plugin install replay --marketplace sanjaibalajee/skills
+/plugin install pr-ready --marketplace sanjaibalajee/skills
+/plugin install pr-merge --marketplace sanjaibalajee/skills
+/plugin install pr-babysit --marketplace sanjaibalajee/skills
+/plugin install cross-model-review --marketplace sanjaibalajee/skills
+/plugin install pr-revive --marketplace sanjaibalajee/skills
+/plugin install android-compose --marketplace sanjaibalajee/skills
+/plugin install ios-swiftui --marketplace sanjaibalajee/skills
 ```
 
 On older Claude Code versions, add the marketplace first with `/plugin marketplace add sanjaibalajee/skills`,
@@ -121,6 +145,55 @@ python3 skills/replay/scripts/build.py examples/replay/recap.json -o recap.html 
 diagrams render offline. Files without diagrams stay around 35 to 50 KB. The two skills carry
 identical copies of the renderer so each installs alone; after editing blueprint's copy, run
 `python3 tools/validate.py --sync` to update replay's.
+
+## PR workflow: pr-ready, pr-merge, pr-babysit, cross-model-review, pr-revive
+
+Skills for getting work merged without watching it. Trigger them by name. They need an authenticated
+`gh`.
+
+pr-ready is for when you aren't going to watch. The agent finishes the change on a branch, proves it
+with evidence it saw (a reproduction, the checks CI runs, the app running), gets a second model's
+review, files a short PR that leads with the problem, and babysits CI and the review bots until the
+PR is ready. Then it stops and you merge. Asking for it is permission to run the builds and device
+checks the proof needs, even if your `AGENTS.md` says to ask first. pr-merge does the same and then
+merges with your repo's merge method once the gate passes, never with `--admin` or around branch
+protection.
+
+pr-babysit ships `scripts/pr_watch.py`, which polls GitHub and prints one line per real event (a
+failed check, a new review, a push by someone else, the base moving), so a Claude Code `Monitor`
+wakes the agent only when something happened. It checks bot findings against the code before
+changing anything and keeps the PR at its original size.
+
+cross-model-review runs `codex exec -s read-only` as the reviewer (or another provider, or a fresh
+subagent), keeps a ledger of findings by severity, and argues it out for up to three rounds. Panel
+mode runs three reviewers from different providers with scores out of 10.
+
+pr-revive checks what changed on the base since a stale PR branched and gives one verdict: REBASE
+(rebase, test, push with a lease), REWRITE (the goal holds, the code doesn't) or CLOSE
+(superseded). It never merges, and closes only with your OK.
+
+```bash
+python3 skills/pr-babysit/scripts/pr_watch.py 123 --until ready    # 0 ready, 1 act, 2 bad input, 3 timed out
+```
+
+## Mobile: android-compose and ios-swiftui
+
+House rules for native mobile apps. Each rule corrects a mistake agents make, with a short SKILL.md
+and references the agent loads per topic.
+
+android-compose condenses 17 skills into one: Google's official Navigation 3, edge-to-edge, adaptive,
+Compose performance, AGP 9, testing and security skills, plus rcosteira79's Compose, data layer,
+Retrofit, Coil, testing, Gradle and modularization skills. It covers the app's module shape, a Route
+and Screen split, repositories as the error boundary, Compose traps, insets and the keyboard,
+Navigation 3, AGP 9, tests and security.
+
+ios-swiftui covers SwiftUI on iOS 26+ with Swift 6.2 and main actor by default: a package of feature
+modules with a router per tab, state ownership and Observation traps, list identity, concurrency,
+Liquid Glass, iOS 27 toolbars, iPhone Duo layouts, lenient decoding and Swift Testing. It draws on a
+shipping app's lessons and on the top public SwiftUI skills (AvdLee, twostraws, Dimillian), and
+leaves out the rules they get wrong.
+
+Both put the project's own `AGENTS.md` or `CLAUDE.md` first and default to "don't build until asked".
 
 ## Repo layout
 

@@ -30,8 +30,13 @@ Installs with `DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` set don't count. The pag
   What keeps this repo's results clean:
   - `unslop/scripts/scan.py` and `plan-doc/scripts/plandoc.py` are stdlib Python with no network calls
     and no subprocesses.
-  - The only network call in the repo is blueprint and replay's opt-in `--fetch-mermaid`, which
-    downloads one pinned Mermaid build from jsDelivr.
+  - blueprint and replay's opt-in `--fetch-mermaid` downloads one pinned Mermaid build from jsDelivr.
+  - `pr-babysit/scripts/pr_watch.py` is stdlib Python that runs the user's own `gh` CLI to read one PR
+    (REST and one GraphQL query). It never writes to GitHub and keeps its state in
+    `~/.local/state/pr-babysit/`. Scanners may flag the subprocess; that's the reason for it.
+  - cross-model-review tells the agent to run the user's `codex` CLI with `-s read-only`. pr-ready
+    and pr-merge grant the agent permission to build, test, push and (pr-merge only) merge, but only
+    when the user asks for them by name, and never to bypass branch protection.
   - No `curl | sh` install steps, no obfuscated code, no credentials, no instructions that tell an
     agent to bypass the user.
 - **The Official section** exists, but skills.sh doesn't say how a skill gets in, and there's no form
@@ -54,11 +59,11 @@ Add the install-count badge to the README once the listing exists:
 ```bash
 python3 tools/validate.py                                  # names, manifests, README lines, prose
 python3 -m unittest discover tests                         # script tests
-DISABLE_TELEMETRY=1 npx skills add sanjaibalajee/skills --list   # the CLI sees all four skills
-git tag v1.1.0 && git push --tags                          # lets people pin a version
+DISABLE_TELEMETRY=1 npx skills add sanjaibalajee/skills --list   # the CLI sees all eleven skills
+git tag v1.2.0 && git push --tags                          # lets people pin a version
 ```
 
-People can then pin it with `npx skills add sanjaibalajee/skills@v1.1.0 --skill unslop`, and
+People can then pin it with `npx skills add sanjaibalajee/skills@v1.2.0 --skill unslop`, and
 `npx skills update` moves them forward.
 
 ## Claude Code plugin marketplace

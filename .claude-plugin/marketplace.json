@@ -5,8 +5,8 @@
     "url": "https://github.com/sanjaibalajee"
   },
   "metadata": {
-    "description": "Skills for planning, reviewing and writing with coding agents",
-    "version": "1.1.0"
+    "description": "Skills for planning, shipping, reviewing and writing with coding agents, plus Android and iOS house rules",
+    "version": "1.2.0"
   },
   "plugins": [
     {
@@ -36,6 +36,55 @@
       "source": "./",
       "strict": false,
       "skills": ["./skills/replay"]
+    },
+    {
+      "name": "pr-ready",
+      "description": "Take a change to a ready-to-merge PR unattended: prove, review, file, babysit",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/pr-ready"]
+    },
+    {
+      "name": "pr-merge",
+      "description": "Take a change all the way to a merged PR unattended",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/pr-merge"]
+    },
+    {
+      "name": "pr-babysit",
+      "description": "Look after an open PR through CI and review bots until it's ready",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/pr-babysit"]
+    },
+    {
+      "name": "cross-model-review",
+      "description": "Cross-model review loop with Codex or another provider until it runs out of real objections",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/cross-model-review"]
+    },
+    {
+      "name": "pr-revive",
+      "description": "Revive an old PR: decide whether it still belongs, then rebase it safely",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/pr-revive"]
+    },
+    {
+      "name": "android-compose",
+      "description": "Android house rules for Kotlin and Jetpack Compose apps",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/android-compose"]
+    },
+    {
+      "name": "ios-swiftui",
+      "description": "SwiftUI house rules for native iPhone apps on iOS 26+ and Swift 6",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/ios-swiftui"]
     }
   ]
 }

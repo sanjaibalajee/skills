@@ -26,7 +26,8 @@ SKILLS = os.path.join(ROOT, "skills")
 NAME_RX = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SHARED = ["scripts/build.py", "scripts/template.html", "references/BLOCKS.md"]
 UNSLOP_STRICT = ["README.md", "PUBLISHING.md", "skills/unslop/SKILL.md", "skills/plan-doc/SKILL.md",
-                 "skills/plan-doc/references/components.md"]
+                 "skills/plan-doc/references/components.md"] + ["skills/%s/SKILL.md" % n for n in (
+    "pr-ready", "pr-merge", "pr-babysit", "cross-model-review", "pr-revive", "android-compose", "ios-swiftui")]
 
 errors = []
 
